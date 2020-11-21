@@ -1,2 +1,12 @@
 # Roll20AttackScriptHelper
-For those who don't have paid accounts, this simple web tool helps build scripts for a round of attacks on Roll20.net, and you can include or exclude modifiers quickly.
+I'm part of a Pathfinder (by Paizo, paizo.com) campaign that used Roll20.net to play our table-top game sessions virtually.  It's been a great tool for us since the pandemic is making face to face gameplay more difficult.  My character is a fighter with a lot of optional feats for his attacks, and of course during a combat in game, he gets buffs or debuffs or the situation calls for modifiers... whatever.  They can all change from round to round.  And making a full round of attacks through the chat interface in Roll20 means typing in a simple markup language to specfiy a tiny amount of formatting and where dice rolls should go in the output.  My first attempt at dealing with the fact that the text I'd have to input might change every round was to have a text file with all the common combinations of modifiers so I could copy the right one and paste it in the chat input box.  It was not a good solution.
+
+My next solution was this web-page-tool.  I set it up so that I could enter information about the character along with the common buffs he gets, and then I could just click a button and have it generate the text I'd have to paste into the chat box.  Hooray!  It was very useful.  I kept all the code in a single HTML file, so that anyone who wanted to download the source and fiddle with it could do so easily.  I also set it up to use a simple cookie to store all the stuff you typed in for a few months... so you wouldn't have to type it all in again the next time you play.
+
+But of course as time went on, I noticed that there were situations I hadn't accounted for.  Other people offered to help with the coding.  I started to make fixes and adjustments.  And I have a list of things I want to do to this thing, but I'm putting it in a public git repository so that those people can help, and so anyone who stumbles on it can help or just use it.
+
+I intend to this be completely free to use, and I assert that no one other than me can use this code for any financial gains.  You are free to use this code for personal use.
+
+Finally, the code is written in HTML, CSS, and JavaScript... pure... real... JavaScript... not one of those stupid libraries or frameworks.  That's good news.  It means the code is easy to work with and doesn't require some huge file to be included.  Alright... if you want to get in touch with me... uh... actually I should probably set up a separate email address shouldn't I?  I'll update this readme file.  In the meantime, you can see where I host the current version...
+
+http://highdex.net/PF/AttackMacroHelper.html
