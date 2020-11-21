@@ -1,0 +1,943 @@
+<html>
+<head>
+    <title>Roll20 Attack Macro Helper</title>
+    <style type="text/css">
+    p {
+        font-size: 1em;
+        font-weight: normal;
+        font-family: Calibri, Verdana, Arial;
+    }
+    
+    table.sectionTable {
+        margin-bottom: 25px;
+    }
+    
+    .labelCell{
+        padding: 3px 9px 3px 9px;
+        background-color: #445577;
+        color: #ffffff;
+        font-size: 1em;
+        font-weight: bold;
+        font-family: Calibri, Verdana, Arial;
+    }
+    
+    .textInputCell{
+        padding: 0px;
+        text-align:center;
+    }
+    
+    .dataCell{
+        background-color: #f0f0f0;
+    }
+    
+    .textInputField{
+        font-size: 1.5em;
+        font-weight: normal;
+        font-family: Calibri, Verdana, Arial;
+        text-align: left;
+        width: 75px;
+    }
+    
+    .wideTextInputField{
+        font-size: 1.5em;
+        font-weight: normal;
+        font-family: Calibri, Verdana, Arial;
+        text-align: left;
+        width: 250px;
+    }
+    
+    .checkboxInputField{
+        width: 20px;
+        height: 20px;
+    }
+    
+    .centeredDataCell{
+        padding: 3px 9px 3px 9px;
+        color: #445577;
+        font-size: 1em;
+        font-weight: normal;
+        font-family: Calibri, Verdana, Arial;
+        text-align: center;
+    }
+    
+    .normalDataCell{
+        padding: 3px 9px 3px 9px;
+        background-color: #ffffff;
+        color: #445577;
+        font-size: 1em;
+        font-weight: normal;
+        font-family: Calibri, Verdana, Arial;
+        text-align: center;
+    }
+    
+    .BigButton{
+        padding: 9px 15px 9px 15px;
+        width: 100%;
+        font-size: 1.5em;
+        font-weight: bold;
+        font-family: Calibri, Verdana, Arial;
+    }
+    
+    .BigSelect{
+        padding: 3px 4px 3px 4px;
+        font-size: 1em;
+        font-weight: normal;
+        font-family: Calibri, Verdana, Arial;
+    }
+    </style>
+    <script>
+    function getTextBoxValue(fieldID)
+    {
+        return window.document.getElementById(fieldID).value.trim();
+    }
+    
+    function isCheckboxChecked(fieldID)
+    {
+        return true == window.document.getElementById(fieldID).checked;
+    }
+    
+    function UpdateTextArea(theText)
+    {
+        window.document.getElementById("MacroField").innerHTML = theText;
+    }
+    
+    function getAttributeMod(attrVal)
+    {
+        var retVal = parseInt(attrVal);
+        retVal = parseInt((retVal - 10) / 2);
+        return retVal;
+    }
+    
+    function getAttackMod()
+    {
+        var AttackMod = 0;
+        
+        //attributes...
+        if (isCheckboxChecked("STtoAttack"))
+        {
+            AttackMod += getAttributeMod(getTextBoxValue("STValue"));
+        }
+        
+        if (isCheckboxChecked("DXtoAttack"))
+        {
+            AttackMod += getAttributeMod(getTextBoxValue("DXValue"));
+        }
+        
+        //normal mods...
+        AttackMod += parseInt(getTextBoxValue("babValue"));
+        AttackMod += parseInt(getTextBoxValue("alwaysAttMod"));
+        
+        //optional mods...
+        var tempVal;
+        for (var optRow = 1; optRow <= 9; optRow++)
+        {
+            if (isCheckboxChecked("ActiveOption" + optRow))
+            {
+                tempVal = getTextBoxValue("AffectsAttack" + optRow);
+                if (isInt(tempVal))
+                {
+                    AttackMod += parseInt(tempVal);
+                }
+            }
+        }
+        
+        return AttackMod;
+    }
+    
+    function getDamageMod()
+    {
+        var DamageMod = 0;
+        
+        //attributes...
+        if (isCheckboxChecked("STtoDamage"))
+        {
+            DamageMod += getAttributeMod(getTextBoxValue("STValue"));
+        }
+        
+        if (isCheckboxChecked("DXtoDamage"))
+        {
+            DamageMod += getAttributeMod(getTextBoxValue("DXValue"));
+        }
+        
+        //normal mods...
+        DamageMod += parseInt(getTextBoxValue("alwaysDmgMod"));
+        
+        //optional mods...
+        var tempVal;
+        for (var optRow = 1; optRow <= 9; optRow++)
+        {
+            if (isCheckboxChecked("ActiveOption" + optRow))
+            {
+                tempVal = getTextBoxValue("AffectsDamage" + optRow);
+                if (isInt(tempVal))
+                {
+                    DamageMod += parseInt(tempVal);
+                }
+            }
+        }
+        
+        return DamageMod;
+    }
+    
+    function UpdateTheMacro()
+    {
+        //start with updating the cookie with the current values
+        UpdateCookie();
+        
+        //then start gathering the needed info to build the macro
+        var theBAB = parseInt(getTextBoxValue("babValue"));
+        var theAttackMod = getAttackMod(); //BAB + Always Attack Mod + ST/DX + options
+        var theDamageMod = getDamageMod();
+        var theBaseDiceDmg = getTextBoxValue("weaponBaseDice");
+        var theCritDice = getTextBoxValue("additionalCritDice");
+        var theCritMult = parseInt(getTextBoxValue("CritMultiplier")) - 1; //minus one because the base attack already accounts for one.
+        var inclCritScript = isCheckboxChecked("includeCritInMacro");
+        var extraDmg = getTextBoxValue("ExtraDmgDice");
+        var inclExtraDmg = isCheckboxChecked("includeExtraDmgInMacro");
+        
+        
+        //build an array of the attacks from highest to lowest
+        var ExtraAttacks = 0;
+        var DoubleAttacks = 0;
+        for (var optRowNum = 1; optRowNum <= 9; optRowNum++)
+        {
+            if (isCheckboxChecked("ActiveOption"+optRowNum) && isCheckboxChecked("AddAttack"+optRowNum)) { ExtraAttacks++; }
+            if (isCheckboxChecked("ActiveOption"+optRowNum) && isCheckboxChecked("AddDamage"+optRowNum)) { DoubleAttacks++; }
+        }
+        
+        var AttacksArray = new Array();
+        for (var ean = 0; ean < ExtraAttacks; ean++)
+        {
+            AttacksArray[ean] = theAttackMod;
+        }
+        
+        var tempAttackMod;
+        for (var curBAB = theBAB; curBAB > 0; curBAB = curBAB - 5)
+        {
+            tempAttackMod = theAttackMod - theBAB + curBAB;
+            AttacksArray[AttacksArray.length] = tempAttackMod;
+        }
+        
+        //== figure out which format the user chose and then build the script to that syntax =======================================================
+        var theScript = "";
+        var FormatChoiceObj = window.document.getElementById("MacroFormatChoice");
+        var FormatChoice = parseInt(FormatChoiceObj.options[FormatChoiceObj.selectedIndex].value);
+        
+        if (FormatChoice == 0) //== Format: Default chat commands ============================================================================
+        {
+        
+            //handles the title row of the script...
+            if (isCheckboxChecked("IncludeOptionNames"))
+            {
+                theScript = "**";
+                
+                var curOptName = "";
+                var isNormalAttack = true;
+                var optsAdded = 0;
+                
+                for (var optNameNum = 1; optNameNum <= 9; optNameNum++)
+                {
+                    curIsActive = isCheckboxChecked("ActiveOption"+optNameNum);
+                    curOptName = getTextBoxValue("OptionName"+optNameNum);
+                    if (curIsActive && curOptName != null && curOptName.length > 0)
+                    {
+                        if (optsAdded > 0) { theScript += ", "; }
+                        theScript += curOptName;
+                        optsAdded++;
+                        isNormalAttack = false;
+                    }
+                }
+                
+                if (isNormalAttack) { theScript += "Normal"; }
+                
+                theScript += " Attack**\n";
+            }
+            
+            //handles the attack rows...
+            for (var attIndex = 0; attIndex < AttacksArray.length; attIndex++)
+            {
+                //put in the main row of damage.  don't forget to check for sneak attack damage.
+                //start with attack roll...
+                theScript += "att: [[1d20";
+                if (AttacksArray[attIndex] > 0) { theScript += "+" + AttacksArray[attIndex]; }
+                else if (AttacksArray[attIndex] < 0) { theScript += AttacksArray[attIndex]; }
+                theScript += "]] > dmg: [[";
+                theScript += theBaseDiceDmg;
+                if (inclExtraDmg) { theScript += "+" + extraDmg; }
+                if (theDamageMod > 0) { theScript += "+" + theDamageMod; }
+                else if (theDamageMod < 0) { theScript += theDamageMod; }
+                
+                theScript += "]]";
+                
+                //on the first one if there's extra damage, add a chunk that rolls that damage on same line
+                if (attIndex == 0 && DoubleAttacks > 0)
+                {
+                    theScript += "[[" + theBaseDiceDmg;
+                    if (inclExtraDmg) { theScript += "+" + extraDmg; }
+                    if (theDamageMod > 0) { theScript += "+" + theDamageMod; }
+                    else if (theDamageMod < 0) { theScript += theDamageMod; }                
+                    theScript += "]]";
+                }
+                
+                theScript += "\n";
+                
+                //if the auto crit check is called for, stick that in.  Will require some calculation.
+                if (inclCritScript)
+                {
+                    theScript += "-- (crit: [[1d20";
+                    if (AttacksArray[attIndex] > 0) { theScript += "+" + AttacksArray[attIndex]; }
+                    else if (AttacksArray[attIndex] < 0) { theScript += AttacksArray[attIndex]; }
+                    theScript += "]] > dmg: [[";
+                    theScript += theCritDice;
+                    if (theDamageMod > 0) { theScript += "+" + (theDamageMod * theCritMult); }
+                    else if (theDamageMod < 0) { theScript += (theDamageMod * theCritMult); }
+                    theScript += "]] )\n";
+                }
+            }
+        } //end format choice 0
+        else if (FormatChoice == 1) //== Format: Default Template ============================================================================
+        {
+            /*
+            &{template:default} {{name=Pt Blank, Rapid, Deadly #1}}{{att: [[1d20+17]] >> dmg: [[1d8+47]]}}{{crit: [[1d20+17]] >> +dmg: [[1d8+47]]}}
+            */
+            
+            //build the attack label...
+            var AttLabel = "";
+            curOptName = "";
+            var isNormalAttack = true;
+            var optsAdded = 0;
+            
+            if (isCheckboxChecked("IncludeOptionNames"))
+            {
+                for (var optNameNum = 1; optNameNum <= 9; optNameNum++)
+                {
+                    curIsActive = isCheckboxChecked("ActiveOption"+optNameNum);
+                    curOptName = getTextBoxValue("OptionName"+optNameNum);
+                    if (curIsActive && curOptName != null && curOptName.length > 0)
+                    {
+                        if (optsAdded > 0) { AttLabel += ", "; }
+                        AttLabel += curOptName;
+                        optsAdded++;
+                        isNormalAttack = false;
+                    }
+                }
+                
+                if (isNormalAttack) { AttLabel = "Normal Attack #"; }
+                else { AttLabel += " #"; }
+            }
+            else { AttLabel = "Attack #"; }
+            
+            //now we have the label for an attack, so let's start building the macro script...
+            for (var attIndex = 0; attIndex < AttacksArray.length; attIndex++)
+            {
+                theScript += "&{template:default} {{name=" + AttLabel + (attIndex + 1).toString() + "}}";
+
+                //put in the main row of damage.  don't forget to check for sneak attack damage.
+                //start with attack roll...
+                theScript += "{{attack: [[1d20";
+                if (AttacksArray[attIndex] > 0) { theScript += "+" + AttacksArray[attIndex]; }
+                else if (AttacksArray[attIndex] < 0) { theScript += AttacksArray[attIndex]; }
+                theScript += "]] >> damage: [[";
+                theScript += theBaseDiceDmg;
+                if (inclExtraDmg) { theScript += "+" + extraDmg; }
+                if (theDamageMod > 0) { theScript += "+" + theDamageMod; }
+                else if (theDamageMod < 0) { theScript += theDamageMod; }
+                
+                theScript += "]]";
+                
+                //on the first one if there's extra damage, add a chunk that rolls that damage on same line
+                if (attIndex == 0 && DoubleAttacks > 0)
+                {
+                    theScript += " and [[" + theBaseDiceDmg;
+                    if (inclExtraDmg) { theScript += "+" + extraDmg; }
+                    if (theDamageMod > 0) { theScript += "+" + theDamageMod; }
+                    else if (theDamageMod < 0) { theScript += theDamageMod; }                
+                    theScript += "]]";
+                }
+                
+                theScript += "}}";
+                
+                //if the auto crit check is called for, stick that in.  Will require some calculation.
+                if (inclCritScript)
+                {
+                    theScript += "{{crit: [[1d20";
+                    if (AttacksArray[attIndex] > 0) { theScript += "+" + AttacksArray[attIndex]; }
+                    else if (AttacksArray[attIndex] < 0) { theScript += AttacksArray[attIndex]; }
+                    theScript += "]] >> +dmg: [[";
+                    theScript += theCritDice;
+                    if (theDamageMod > 0) { theScript += "+" + (theDamageMod * theCritMult); }
+                    else if (theDamageMod < 0) { theScript += (theDamageMod * theCritMult); }
+                    theScript += "]]}}";
+                }
+                
+                theScript += "\n";
+            }
+            
+            
+        }
+        else if (FormatChoice == 2) //== Format: Custom Template ============================================================================
+        {
+            /*
+            &{template:default} {{name=whatever label}}
+            {{att (conf) => dmg (+crit)}}
+            {{[[1d20+17]] ([[1d20+17]]) => [[1d8+24]] (+ [[2d8+48]])}}
+            */
+            
+            //build the attack label...
+            var AttLabel = "";
+            curOptName = "";
+            var isNormalAttack = true;
+            var optsAdded = 0;
+            
+            if (isCheckboxChecked("IncludeOptionNames"))
+            {
+                for (var optNameNum = 1; optNameNum <= 9; optNameNum++)
+                {
+                    curIsActive = isCheckboxChecked("ActiveOption"+optNameNum);
+                    curOptName = getTextBoxValue("OptionName"+optNameNum);
+                    if (curIsActive && curOptName != null && curOptName.length > 0)
+                    {
+                        if (optsAdded > 0) { AttLabel += ", "; }
+                        AttLabel += curOptName;
+                        optsAdded++;
+                        isNormalAttack = false;
+                    }
+                }
+                
+                if (isNormalAttack) { AttLabel = "Normal Attack"; }
+            }
+            else { AttLabel = "Attack"; }
+            
+            theScript = "&{template:default} {{name=" + AttLabel + "}}";
+            
+            if (inclCritScript) 
+            {
+                theScript += "{{att(conf) >> dmg(+crit)}}";
+            }
+            else
+            {
+                theScript += "{{att >> dmg}}";
+            }
+            
+            //now loop through attacks to build the condensed attack lines...
+             for (var attIndex = 0; attIndex < AttacksArray.length; attIndex++)
+            {
+                //start with attack roll...
+                theScript += "{{[[1d20";
+                if (AttacksArray[attIndex] > 0) { theScript += "+" + AttacksArray[attIndex]; }
+                else if (AttacksArray[attIndex] < 0) { theScript += AttacksArray[attIndex]; }
+                theScript += "]]";
+                
+                //crit confirm roll...
+                if (inclCritScript)
+                {
+                    theScript += "([[1d20";
+                    if (AttacksArray[attIndex] > 0) { theScript += "+" + AttacksArray[attIndex]; }
+                    else if (AttacksArray[attIndex] < 0) { theScript += AttacksArray[attIndex]; }
+                    theScript += "]])";
+                }
+                
+                //delimiter between attack rolls and damage rolls...
+                theScript += " >> ";
+                
+                
+                //next we add the base damage...
+                theScript += "[[" + theBaseDiceDmg;
+                if (inclExtraDmg) { theScript += "+" + extraDmg; }
+                if (theDamageMod > 0) { theScript += "+" + theDamageMod; }
+                else if (theDamageMod < 0) { theScript += theDamageMod; }
+                theScript += "]]";
+                
+                //on the first one if there's extra damage, add a chunk that rolls that damage on same line
+                if (attIndex == 0 && DoubleAttacks > 0)
+                {
+                    theScript += " and [[" + theBaseDiceDmg;
+                    if (inclExtraDmg) { theScript += "+" + extraDmg; }
+                    if (theDamageMod > 0) { theScript += "+" + theDamageMod; }
+                    else if (theDamageMod < 0) { theScript += theDamageMod; }                
+                    theScript += "]]";
+                }
+                
+                //finally, stick in the extra damage if the crit confirmed...
+                if (inclCritScript)
+                {
+                    theScript += "([[" + theCritDice;
+                    if (theDamageMod > 0) { theScript += "+" + (theDamageMod * theCritMult); }
+                    else if (theDamageMod < 0) { theScript += (theDamageMod * theCritMult); }
+                    theScript += "]])";
+                }
+                
+                theScript += "}}";
+            }
+            
+            
+        }
+        else //== Error ============================================================================
+        {
+            //somehow picked a number that doesn't exist?
+            theScript="Not sure what you're doing to the web app, but I don't have a useful reaction for you";
+        }
+        
+        //finally, update the text area with the new macro
+        UpdateTextArea(theScript);
+    }
+    
+    function getCookieExpireDate()
+    {
+        var theDate = new Date();
+        var theYear = theDate.getFullYear();
+        var theMonth = theDate.getMonth()+4;
+        var theDay = 28;
+        
+        if (theMonth > 12) {
+            theYear += 1;
+            theMonth = theMonth - 12;
+        }
+        
+        return new Date(theYear, theMonth, theDay);
+    }
+    
+    function UpdateCookie()
+    {
+        var expireDate = getCookieExpireDate();
+        var jsonTextValue;
+        var theText = "MacroSettings="; 
+        
+        jsonTextValue = "{  \"ST\":  \"" +  getTextBoxValue("STValue") + "\", ";
+        jsonTextValue += "\"STAtt\":  " +  BoolToString(isCheckboxChecked("STtoAttack")) + ", ";
+        jsonTextValue += "\"STDmg\":  " + BoolToString(isCheckboxChecked("STtoDamage")) + ", ";
+        jsonTextValue += "\"DX\":  \"" + getTextBoxValue("DXValue") + "\", ";
+        jsonTextValue += "\"DXAtt\":  " + BoolToString(isCheckboxChecked("DXtoAttack"))+ ", ";
+        jsonTextValue += "\"DXDmg\":  " + BoolToString(isCheckboxChecked("DXtoDamage")) + ", ";
+        jsonTextValue += "\"BAB\":  \"" + getTextBoxValue("babValue") + "\", ";
+        jsonTextValue += "\"otherAB\":  \"" + getTextBoxValue("alwaysAttMod") + "\", ";
+        jsonTextValue += "\"otherDmg\":  \"" + getTextBoxValue("alwaysDmgMod") + "\", ";
+        jsonTextValue += "\"baseDmg\":  \"" + getTextBoxValue("weaponBaseDice") + "\", ";
+        jsonTextValue += "\"addCritDmg\":  \"" + getTextBoxValue("additionalCritDice") + "\", ";
+        jsonTextValue += "\"critMult\": \"" + getTextBoxValue("CritMultiplier") + "\", ";
+        jsonTextValue += "\"inclCritConfirm\":  " + BoolToString(isCheckboxChecked("includeCritInMacro")) + ", ";
+        jsonTextValue += "\"addSneakDmg\":  \"" + getTextBoxValue("ExtraDmgDice") + "\", ";
+        jsonTextValue += "\"inclSneakDmg\":  " + BoolToString(isCheckboxChecked("includeExtraDmgInMacro")) + ", ";
+        jsonTextValue += "\"inclMacroTitle\":  " +  BoolToString(isCheckboxChecked("IncludeOptionNames")) + ", ";
+        
+        jsonTextValue += "\"options\": [ ";
+        
+        var rowVal;
+        var haveAddedOption = false;
+        for (var rowNum = 1; rowNum <= 9; rowNum++)
+        {
+            rowVal = getOptionJSON(rowNum);
+            
+            if (rowVal.length > 0)
+            {
+                if (haveAddedOption) { jsonTextValue += ", "; }
+                jsonTextValue += rowVal;
+                haveAddedOption = true;
+            }
+        }
+        
+        jsonTextValue += " ] }; ";
+
+        theText += jsonTextValue;
+        theText += "expires=" + expireDate.toUTCString() + "; path=/";
+
+        window.document.cookie = theText;
+    }
+    
+    function getOptionJSON(rowNumber)
+    {
+        var optName = getTextBoxValue("OptionName"+rowNumber).trim();
+        var attMod = parseInt(getTextBoxValue("AffectsAttack"+rowNumber).trim());
+        var dmgMod = parseInt(getTextBoxValue("AffectsDamage"+rowNumber).trim());
+        var addAttack = isCheckboxChecked("AddAttack"+rowNumber);
+        var addDmg = isCheckboxChecked("AddDamage"+rowNumber);
+        var isActive = isCheckboxChecked("ActiveOption"+rowNumber);
+    
+        if (optName.length > 0 && (attMod > 0 || dmgMod > 0 || addAttack || addDmg))
+        {
+            var retVal = "{ \"optName\": \"" +  optName + "\", ";
+            retVal += "\"attMod\": \"" + attMod + "\", ";
+            retVal += "\"dmgMod\": \"" + dmgMod + "\", ";
+            retVal += "\"addAtt\": " + addAttack.toString() + ", ";
+            retVal += "\"addHit\": " + addDmg.toString() + ", ";
+            retVal += "\"active\": " + isActive.toString() + " ";
+            retVal += "}";
+            return retVal;
+        }
+        else 
+        {
+            return "";
+        }
+    }
+    
+    function BoolToString(theBool)
+    {
+        return theBool ? "true" : "false";
+    }
+    
+    function StringToBool(theString)
+    {
+        var retVal = false;
+        theString = theString.toString().trim().toLowerCase();
+        if  (theString === "true" || theString === "t" || theString === "yes" || theString === "y" || theString === "on") { retVal = true; }
+        else if (isInt(theString))
+        {
+            var theInt = parseInt(theString);
+            retVal = theInt > 0;
+        }
+        
+        return retVal;
+    }
+    
+    function isInt(checkVal)
+    {
+        var validChars = "0123456789";
+        var retVal = true;
+        var checkValStr = checkVal.toString();
+        var checkValLen = checkValStr.length;
+        var currentChar;
+        
+        if (checkVal === null || checkValLen === 0) { retVal = false; }
+        else 
+        {
+            if (checkValLen[0] == "-") 
+            {
+                checkValStr = checkValStr.substring(1);
+                checkValLen = checkValStr.length;
+            }
+        
+            for (var charIndex = 0; charIndex < checkValLen; charIndex++)
+            {
+                currentChar = checkValStr[charIndex];
+                if (validChars.indexOf(currentChar) == -1)
+                {
+                    retVal = false;
+                    break;
+                }
+            }
+        }
+        
+        return retVal;
+    }
+    
+    function LoadFromCookie()
+    {
+        var cookieText = window.document.cookie.trim();
+        if (cookieText.length > 0)
+        {
+            var cookieArray = cookieText.split(";"); //get the chunks.  The one we want starts with MacroSettings=
+            var itemCount = cookieArray.length;
+            var desiredIndex = -1;
+            
+            for (var itemIndex = 0; itemIndex < itemCount; itemIndex++)
+            {
+                cookieArray[itemIndex] = cookieArray[itemIndex].trim();
+                if (cookieArray[itemIndex].indexOf("MacroSettings") == 0)
+                {
+                    desiredIndex = itemIndex;
+                    //could break and just act on the desired string from here, but maybe I'll want the other values for some reason
+                }
+            }
+            
+            if (desiredIndex > -1)
+            {
+                var JSONString = cookieArray[desiredIndex];
+                var StartIndex = "MacroSettings=".length;
+                JSONString = JSONString.substring(StartIndex);
+                
+                var JSONObj = JSON.parse(JSONString);
+                
+                //now go through the JSON object to try to load the fields on the page.
+                setTextField("STValue", JSONObj.ST);
+                 AttributeChanged(window.document.getElementById("STValue"), "STModDisplay");
+                setCheckBoxField("STtoAttack", JSONObj.STAtt);
+                setCheckBoxField("STtoDamage", JSONObj.STDmg);
+                setTextField("DXValue", JSONObj.DX);
+                AttributeChanged(window.document.getElementById("DXValue"), "DXModDisplay");
+                setCheckBoxField("DXtoAttack", JSONObj.DXAtt);
+                setCheckBoxField("DXtoDamage", JSONObj.DXDmg);
+                
+                setTextField("babValue", JSONObj.BAB);
+                setTextField("alwaysAttMod", JSONObj.otherAB);
+                setTextField("alwaysDmgMod", JSONObj.otherDmg);
+                setTextField("weaponBaseDice", JSONObj.baseDmg);
+                setTextField("additionalCritDice", JSONObj.addCritDmg);
+                setTextField("CritMultiplier", JSONObj.critMult);
+                setCheckBoxField("includeCritInMacro", JSONObj.inclCritConfirm);
+                setTextField("ExtraDmgDice", JSONObj.addSneakDmg);
+                setCheckBoxField("includeExtraDmgInMacro", JSONObj.inclSneakDmg);
+                setCheckBoxField("IncludeOptionNames", JSONObj.inclMacroTitle);
+                
+                var optCount = JSONObj.options.length;
+                var curRow;
+                for (var optInd = 0; optInd < optCount && optInd < 9; optInd++)
+                {
+                    curRow = optInd + 1;
+                    setTextField("OptionName"+curRow, JSONObj.options[optInd].optName);
+                    setTextField("AffectsAttack"+curRow, JSONObj.options[optInd].attMod);
+                    setTextField("AffectsDamage"+curRow, JSONObj.options[optInd].dmgMod);
+                    setCheckBoxField("AddAttack"+curRow, JSONObj.options[optInd].addAtt);
+                    setCheckBoxField("AddDamage"+curRow, JSONObj.options[optInd].addHit);
+                    setCheckBoxField("ActiveOption"+curRow, JSONObj.options[optInd].active);
+                }
+            }
+            
+            
+        }
+    }
+    
+    function setTextField(fieldName, fieldValue)
+    {
+        if (fieldValue == null) { fieldValue = ""; }
+        window.document.getElementById(fieldName).value = fieldValue;
+    }
+    
+    function setCheckBoxField(fieldName, isChecked)
+    {
+        if (isChecked == null) { isChecked = false; }
+        window.document.getElementById(fieldName).checked = isChecked;
+    }
+    
+    function updateAttributeMod(displayFieldName, modValue)
+    {
+        var theDisplayField = window.document.getElementById(displayFieldName);
+        if (theDisplayField !== null)
+        {
+            theDisplayField.innerHTML = modValue;
+        }
+    }
+    
+    function AttributeChanged(inputFieldObj, displayFieldName)
+    {
+        if (inputFieldObj !== null && inputFieldObj.value && isInt(inputFieldObj.value))
+        {
+            var theValue = parseInt(inputFieldObj.value);
+            var theMod = Math.trunc((theValue - 10) / 2);
+            var theModDisplay = "";
+            if (theMod >= 0) { theModDisplay = "+" + theMod.toString(); }
+            else if (theMod < 0) { theModDisplay = theMod.toString(); }
+            
+            updateAttributeMod(displayFieldName, theModDisplay);
+        }
+        else
+        {
+            updateAttributeMod(displayFieldName, "");
+        }
+    }
+    </script>
+</head>
+<body onload="LoadFromCookie();">
+
+
+<!-- Generally stable data ============================================================================================================================================ -->
+<table border="0" cellpadding="0" cellspacing="25" class="sectionTable">
+<tr>
+    <td style="vertical-align:top;"> <!-- Attributes Cell =========================================================================== -->
+        
+        <table border="0" cellpadding="3" cellspacing="2">
+        <tr>
+            <td rowspan="2" colspan="2" class="labelCell">Attribute</td>
+            <td rowspan="2" class="labelCell">Mod</td>
+            <td colspan="2" class="labelCell">Applies to...</td>
+        </tr>
+        <tr>
+            <td class="labelCell">Attack</td>
+            <td class="labelCell">Damage</td>
+        </tr>
+        <tr>
+            <td class="labelCell">ST</td>
+            <td class="textInputCell dataCell"><input type="text" maxlength="2" id="STValue" class="textInputField" onchange="AttributeChanged(this, 'STModDisplay');" value="" /></td>
+            <td class="centeredDataCell dataCell"><span id="STModDisplay"></span><input type="hidden" id="STModValue" value="" /></td>
+            <td class="textInputCell dataCell"><input type="checkbox" id="STtoAttack" class="checkboxInputField" /></td>
+            <td class="textInputCell dataCell"><input type="checkbox" id="STtoDamage" class="checkboxInputField" /></td>
+        </tr>
+        <tr>
+            <td class="labelCell">DX</td>
+            <td class="textInputCell dataCell"><input type="text" maxlength="2" id="DXValue" class="textInputField" onchange="AttributeChanged(this, 'DXModDisplay');" value="" /></td>
+            <td class="centeredDataCell dataCell"><span id="DXModDisplay"></span><input type="hidden" id="DXModValue" value="" /></td>
+            <td class="textInputCell dataCell"><input type="checkbox" id="DXtoAttack" class="checkboxInputField" /></td>
+            <td class="textInputCell dataCell"><input type="checkbox" id="DXtoDamage" class="checkboxInputField" /></td>
+        </tr>
+        </table>
+        
+    </td>
+    <td style="vertical-align:top;"> <!-- Critical hit info =========================================================================== -->
+        
+        <table border="0" cellpadding="3" cellspacing="2">
+        <tr>
+            <td class="labelCell">Additional Dice Damage on Crit</td>
+            <td class="textInputCell dataCell"><input type="text" maxlength="5" id="additionalCritDice" class="textInputField" value="" /></td>
+        </tr>
+        <tr>
+            <td class="labelCell">Crit Damage Multiplier</td>
+            <td class="textInputCell dataCell"><input type="text" maxlength="2" id="CritMultiplier" class="textInputField" value="" /></td>
+        </tr>
+        <tr>
+            <td class="labelCell"><label for="includeCritInMacro">Include crit confirm &amp; damage in script?</label></td>
+            <td class="textInputCell dataCell"><input type="checkbox" id="includeCritInMacro" class="checkboxInputField"  /></td>
+        </tr>
+        </table>
+        
+    </td>
+</tr>
+<tr>
+    <td style="vertical-align:top;"> <!-- Base Modifiers =========================================================================== -->
+    
+        <table border="0" cellpadding="3" cellspacing="2">
+        <tr>
+            <td class="labelCell">Base Attack Bonus</td>
+            <td class="textInputCell dataCell"><input type="text" maxlength="3" id="babValue" class="textInputField" value="" /></td>
+        </tr>
+        <tr>
+            <td class="labelCell">Always Applied Attack Bonus</td>
+            <td class="textInputCell dataCell"><input type="text" maxlength="2" id="alwaysAttMod" class="textInputField" value="" /></td>
+        </tr>
+        <tr>
+            <td class="labelCell">Always Applied Damage Bonus</td>
+            <td class="textInputCell dataCell"><input type="text" maxlength="3" id="alwaysDmgMod" class="textInputField" value="" /></td>
+        </tr>
+        <tr>
+            <td class="labelCell">Weapon Base Dice of Damage</td>
+            <td class="textInputCell dataCell"><input type="text" maxlength="5" id="weaponBaseDice" class="textInputField" value="" /></td>
+        </tr>
+        </table>
+    
+    </td>
+    <td style="vertical-align:top;"> <!-- Extra Damage =========================================================================== -->
+        
+        <table border="0" cellpadding="3" cellspacing="2">
+        <tr>
+            <td class="labelCell">Extra Dice Damage (like Sneak Attack)</td>
+            <td class="textInputCell dataCell"><input type="text" maxlength="5" id="ExtraDmgDice" class="textInputField" value="" /></td>
+        </tr>
+        <tr>
+            <td class="labelCell"><label for="includeExtraDmgInMacro">Include extra damage in macro?</label></td>
+            <td class="textInputCell dataCell"><input type="checkbox" id="includeExtraDmgInMacro" class="checkboxInputField" /></td>
+        </tr>
+        </table>
+        
+    </td>
+</tr>
+</table>
+
+
+
+<!-- Options Section ======================================================================================================= -->
+<table border="0" cellpadding="3" cellspacing="2" class="sectionTable">
+<tr>
+    <td class="labelCell">Optional / Situational Modifiers</td>
+    <td class="labelCell">Attack Mod</td>
+    <td class="labelCell">Damage Mod</td>
+    <td class="labelCell" style="width:90px;">Adds high mod attack?</td>
+    <td class="labelCell" style="width:90px;">Adds extra hit (Many Shot)?</td>
+    <td class="labelCell" style="width:90px;">Active?</td>
+</tr>
+<tr>
+    <td class="textInputCell dataCell"><input type="text" maxlength="40" id="OptionName1" class="wideTextInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsAttack1" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsDamage1" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddAttack1" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddDamage1" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="ActiveOption1" class="checkboxInputField" /></td>
+</tr>
+<tr>
+    <td class="textInputCell dataCell"><input type="text" maxlength="40" id="OptionName2" class="wideTextInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsAttack2" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsDamage2" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddAttack2" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddDamage2" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="ActiveOption2" class="checkboxInputField" /></td>
+</tr>
+<tr>
+    <td class="textInputCell dataCell"><input type="text" maxlength="40" id="OptionName3" class="wideTextInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsAttack3" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsDamage3" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddAttack3" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddDamage3" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="ActiveOption3" class="checkboxInputField" /></td>
+</tr>
+<tr>
+    <td class="textInputCell dataCell"><input type="text" maxlength="40" id="OptionName4" class="wideTextInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsAttack4" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsDamage4" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddAttack4" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddDamage4" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="ActiveOption4" class="checkboxInputField" /></td>
+</tr>
+<tr>
+    <td class="textInputCell dataCell"><input type="text" maxlength="40" id="OptionName5" class="wideTextInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsAttack5" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsDamage5" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddAttack5" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddDamage5" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="ActiveOption5" class="checkboxInputField" /></td>
+</tr>
+<tr>
+    <td class="textInputCell dataCell"><input type="text" maxlength="40" id="OptionName6" class="wideTextInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsAttack6" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsDamage6" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddAttack6" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddDamage6" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="ActiveOption6" class="checkboxInputField" /></td>
+</tr>
+<tr>
+    <td class="textInputCell dataCell"><input type="text" maxlength="40" id="OptionName7" class="wideTextInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsAttack7" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsDamage7" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddAttack7" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddDamage7" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="ActiveOption7" class="checkboxInputField" /></td>
+</tr>
+<tr>
+    <td class="textInputCell dataCell"><input type="text" maxlength="40" id="OptionName8" class="wideTextInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsAttack8" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsDamage8" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddAttack8" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddDamage8" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="ActiveOption8" class="checkboxInputField" /></td>
+</tr>
+<tr>
+    <td class="textInputCell dataCell"><input type="text" maxlength="40" id="OptionName9" class="wideTextInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsAttack9" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="text" maxlength="3" id="AffectsDamage9" class="textInputField" value="" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddAttack9" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="AddDamage9" class="checkboxInputField" /></td>
+    <td class="textInputCell dataCell"><input type="checkbox" id="ActiveOption9" class="checkboxInputField" /></td>
+</tr>
+</table>
+
+
+
+<!-- Macro Script Section =================================================================================================== -->
+ <table border="0" cellpadding="3" cellspacing="2" class="sectionTable">
+<tr>
+    <td class="labelCell">Script Format: <select id="MacroFormatChoice" class="BigSelect">
+        <option value="0" selected>Chat Commands: Normal chat commands, ugly result</option>
+        <option value="1">Default Template: One template section per attack</option>
+        <option value="2">Default Template: All attacks in one template section</option>
+    </select></td>
+    <td rowspan="2" style="vertical-align:middle; background-color: #990000;"><input type="button" value="Update Macro" class="BigButton" onclick="UpdateTheMacro();" /></td>
+</tr>
+<tr><td class="centeredDataCell dataCell" style="vertical-align:middle; text-align:left;"><label for="IncludeOptionNames">Include option names in macro?</label> <input type="checkbox" id="IncludeOptionNames" class="checkboxInputField" /></td></tr>
+<tr>
+    <td colspan="2"><textarea cols="180" rows="9" id="MacroField"></textarea></td>
+</tr>
+</table>
+
+
+
+<!-- Information Section ==================================================================================================== -->
+<p><b>Disclaimer:</b> This is not even remotely a professionally written app.  It's a quick and dirty thing to help generate 
+the attack macro script that is used in the <a href="http://www.roll20.net/" target="_blank">Roll20</a> online table top 
+for role-playing games.  If you input bad values into fields, it'll probably just throw an error.  Input good values, and it should 
+work just fine for you.  But again, there's no QA on this, so there might be bugs I missed too.</p>
+
+<p><b>Cookies:</b> This site uses a cookie to remember what you filled in.  It sets the expiration at three months from the 
+last time you clicked the <i>Update Macro</i> button.  Hopefully that's enough to span game sessions.  But that way you 
+don't have to type in your information every time you play.  If you disable cookies, the page should still function, but you 
+will have to type everything in before using it between browser uses.</p>
+
+
+
+</body>
+</html>
