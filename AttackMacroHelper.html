@@ -497,6 +497,19 @@
         return new Date(theYear, theMonth, theDay);
     }
     
+    function getSelectBoxIndex(sbID)
+    {
+        var theSB = window.document.getElementById(sbID);
+        if (theSB != null)
+        {
+            return theSB.selectedIndex;
+        }
+        else 
+        {
+            return 0;
+        }
+    }
+    
     function UpdateCookie()
     {
         var expireDate = getCookieExpireDate();
@@ -519,6 +532,7 @@
         jsonTextValue += "\"addSneakDmg\":  \"" + getTextBoxValue("ExtraDmgDice") + "\", ";
         jsonTextValue += "\"inclSneakDmg\":  " + BoolToString(isCheckboxChecked("includeExtraDmgInMacro")) + ", ";
         jsonTextValue += "\"inclMacroTitle\":  " +  BoolToString(isCheckboxChecked("IncludeOptionNames")) + ", ";
+        jsonTextValue += "\"scriptFormat\":  " +  getSelectBoxIndex("MacroFormatChoice") + ", ";
         
         jsonTextValue += "\"options\": [ ";
         
@@ -593,14 +607,17 @@
     {
         var validChars = "0123456789";
         var retVal = true;
-        var checkValStr = checkVal.toString();
-        var checkValLen = checkValStr.length;
+        var checkValStr;
+        var checkValLen;
         var currentChar;
         
-        if (checkVal === null || checkValLen === 0) { retVal = false; }
+        if (isEmpty(checkVal)) { retVal = false; }
         else 
         {
-            if (checkValLen[0] == "-") 
+            checkValStr = checkVal.toString();
+            checkValLen = checkValStr.length;
+            
+            if (checkValStr[0] == "-")  //check for a minus sign
             {
                 checkValStr = checkValStr.substring(1);
                 checkValLen = checkValStr.length;
@@ -615,6 +632,22 @@
                     break;
                 }
             }
+        }
+        
+        return retVal;
+    }
+    
+    function isEmpty(checkVal)
+    {
+        var retVal = false;
+        
+        if (checkVal === null || typeof checkVal === "undefined")
+        {
+            retVal = true;
+        }
+        else if (typeof checkVal === "string" && checkVal.length == 0)
+        {
+            retVal = true;
         }
         
         return retVal;
@@ -667,6 +700,7 @@
                 setTextField("ExtraDmgDice", JSONObj.addSneakDmg);
                 setCheckBoxField("includeExtraDmgInMacro", JSONObj.inclSneakDmg);
                 setCheckBoxField("IncludeOptionNames", JSONObj.inclMacroTitle);
+                setSelectBoxOption("MacroFormatChoice", JSONObj.scriptFormat);
                 
                 var optCount = JSONObj.options.length;
                 var curRow;
@@ -696,6 +730,27 @@
     {
         if (isChecked == null) { isChecked = false; }
         window.document.getElementById(fieldName).checked = isChecked;
+    }
+    
+    function setSelectBoxOption(fieldName, optionIndex)
+    {
+        var theSB = window.document.getElementById(fieldName);
+        var theIndex = 0;
+        
+        if (theSB != null && isInt(optionIndex))
+        {
+            theIndex = parseInt(optionIndex);
+            if (theIndex < 0)
+            {
+                theIndex = 0;
+            }
+            else if (theIndex >= theSB.length)
+            {
+                theIndex = theSB.length - 1;
+            }
+        }
+        
+        theSB.selectedIndex = theIndex;
     }
     
     function updateAttributeMod(displayFieldName, modValue)
